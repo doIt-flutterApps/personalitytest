@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../detail/detail_page.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 class QuestionPage extends StatefulWidget {
   final String question;
@@ -74,19 +75,31 @@ class _QuestionPage extends State<QuestionPage> {
                 selectNumber == -1
                     ? Container()
                     : ElevatedButton(
-                      onPressed: () {
-                        // 결과 페이지로 이동하기
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (context) {
-                              return DetailPage(
-                                answer: questions['answer'][selectNumber],
-                                question: questions['question'],
-                              );
+                      onPressed: () async {
+                        try {
+                          await FirebaseAnalytics.instance.logEvent(
+                            name: 'personal_select',
+                            parameters: {
+                              'test_name': title,
+                              'select': selectNumber,
                             },
-                          ),
-                        );
+                          );
+                          await Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (context) {
+                                return DetailPage(
+                                  answer: questions['answer'][selectNumber],
+                                  question: questions['question'],
+                                );
+                              },
+                            ),
+                          );
+                        } catch (e) {
+                          // 이벤트 로깅 실패 시 오류 처리하기
+                          print('Failed to log event: $e');
+                        }
                       },
+
                       child: const Text('성격 보기'),
                     ),
               ],

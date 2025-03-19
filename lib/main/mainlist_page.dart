@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../sub/question_page.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -12,7 +14,27 @@ class MainPage extends StatefulWidget {
   }
 }
 
+final FirebaseRemoteConfig remoteConfig = FirebaseRemoteConfig.instance;
+
 class _MainPage extends State<MainPage> {
+  String welcomeTitle = '';
+  bool bannerUse = false;
+  int itemHeight = 50;
+
+  @override
+  void initState() {
+    super.initState();
+    remoteConfigInit();
+  }
+
+  void remoteConfigInit() async {
+    await remoteConfig.fetch();
+    await remoteConfig.activate(); // activate()를 명시적으로 호출하기
+    welcomeTitle = remoteConfig.getString('welcome');
+    bannerUse = remoteConfig.getBool('banner');
+    itemHeight = remoteConfig.getInt('item_height');
+  }
+
   // JSON 파일을 비동기로 로드하는 함수
   Future<String> loadAsset() async {
     return await rootBundle.loadString('res/api/list.json');
@@ -21,6 +43,7 @@ class _MainPage extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: bannerUse ? AppBar(title: Text(welcomeTitle)) : null,
       body: FutureBuilder<String>(
         // Future 타입 명시하기
         future: loadAsset(),
@@ -39,19 +62,31 @@ class _MainPage extends State<MainPage> {
                   itemBuilder: (context, index) {
                     return InkWell(
                       onTap: () async {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) {
-                              return QuestionPage(
-                                question:
-                                    list['questions'][index]['file'].toString(),
-                              );
+                        try {
+                          await FirebaseAnalytics.instance.logEvent(
+                            name: 'test_click',
+                            parameters: {
+                              'test_name':
+                                  list['questions'][index]['title'].toString(),
                             },
-                          ),
-                        );
+                          );
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) {
+                                return QuestionPage(
+                                  question:
+                                      list['questions'][index]['file']
+                                          .toString(),
+                                );
+                              },
+                            ),
+                          );
+                        } catch (e) {
+                          print('Failed to log event: $e');
+                        }
                       },
                       child: SizedBox(
-                        height: 50,
+                        height: itemHeight.toDouble(),
                         child: Card(
                           child: Text(
                             list['questions'][index]['title'].toString(),
