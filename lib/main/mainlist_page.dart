@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+
 // import 'package:flutter/services.dart';
 import '../sub/question_page.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -21,6 +24,9 @@ class _MainPage extends State<MainPage> {
   FirebaseDatabase database = FirebaseDatabase.instance;
   late DatabaseReference _testRef;
   late List<String> testList = List.empty(growable: true);
+  final Connectivity _connectivity = Connectivity();
+  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  bool _isDialogOpen = false; // 대화 상자 표시 여부
 
   String welcomeTitle = '';
   bool bannerUse = false;
@@ -31,6 +37,69 @@ class _MainPage extends State<MainPage> {
     super.initState();
     remoteConfigInit();
     _testRef = database.ref('test');
+    _checkInternetConnection(); // 초기 연결 상태 확인하기
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+      _updateConnectionStatus,
+    );
+  }
+
+  Future<void> _checkInternetConnection() async {
+    var connectivityResult = await _connectivity.checkConnectivity();
+    _handleConnectionStatus(connectivityResult);
+  }
+
+  void _updateConnectionStatus(List<ConnectivityResult> result) {
+    _handleConnectionStatus(result);
+  }
+
+  void _handleConnectionStatus(List<ConnectivityResult> result) {
+    for (var element in result) {
+      if (element == ConnectivityResult.mobile ||
+          element == ConnectivityResult.wifi) {
+        if (_isDialogOpen) {
+          Navigator.of(context).pop(); // 대화 상자 닫기
+          _isDialogOpen = false;
+        }
+        _testRef = database.ref('test');
+        remoteConfigInit();
+        return;
+      } else {
+        _showOfflineDialog(); // 인터넷에 연결되지 않으면 대화 상자 표시하기
+      }
+    }
+  }
+
+  void _showOfflineDialog() {
+    if (!_isDialogOpen && mounted) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          _isDialogOpen = true;
+          return AlertDialog(
+            title: const Text('심리 테스트 앱'),
+            content: const Text(
+              '지금은 인터넷에 연결되지 않아 심리 테스트 앱을 '
+              '사용할 수 없습니다. 나중에 다시 실행해 주세요.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _isDialogOpen = false;
+                },
+                child: const Text('확인'),
+              ),
+            ],
+          );
+        },
+      ).then((_) => _isDialogOpen = false); // 대화 상자를 닫을 때 _isDialogOpen = false
+    }
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel(); // StreamSubscription 해제하기
+    super.dispose();
   }
 
   void remoteConfigInit() async {
@@ -59,7 +128,8 @@ class _MainPage extends State<MainPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: bannerUse ? AppBar(title: Text(welcomeTitle)) : null,
-      body: FutureBuilder<List<String>>( // Future 타입 명시하기
+      body: FutureBuilder<List<String>>(
+        // Future 타입 명시하기
         future: loadAsset(),
 
         builder: (context, snapshot) {
