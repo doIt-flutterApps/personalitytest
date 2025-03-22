@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 // import 'package:flutter/services.dart';
@@ -23,7 +24,7 @@ final FirebaseRemoteConfig remoteConfig = FirebaseRemoteConfig.instance;
 class _MainPage extends State<MainPage> {
   FirebaseDatabase database = FirebaseDatabase.instance;
   late DatabaseReference _testRef;
-  late List<String> testList = List.empty(growable: true);
+  late List<String> testList = []; // List.empty(growable: true);
   final Connectivity _connectivity = Connectivity();
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
   bool _isDialogOpen = false; // 대화 상자 표시 여부
@@ -79,7 +80,7 @@ class _MainPage extends State<MainPage> {
             title: const Text('심리 테스트 앱'),
             content: const Text(
               '지금은 인터넷에 연결되지 않아 심리 테스트 앱을 '
-              '사용할 수 없습니다. 나중에 다시 실행해 주세요.',
+                '사용할 수 없습니다. 나중에 다시 실행해 주세요.',
             ),
             actions: [
               TextButton(
@@ -114,12 +115,19 @@ class _MainPage extends State<MainPage> {
   Future<List<String>> loadAsset() async {
     try {
       final snapshot = await _testRef.get();
-      snapshot.children.forEach((element) {
-        testList.add(element.value as String); // 형 변환하기
-      });
+      for (var element in snapshot.children) {
+        if(!testList.contains(element.value)) { // 데이터 중복 확인하는 코드 추가 Ahn
+          testList.add(element.value as String); // 형 변환하기
+        }
+      }
+      if (kDebugMode) {
+        print('데이터 개수: ${testList.length}');
+      }
       return testList;
     } catch (e) {
-      print('Failed to load data: $e');
+      if (kDebugMode) {
+        print('Failed to load data: $e');
+      }
       return [];
     }
   }
@@ -153,7 +161,7 @@ class _MainPage extends State<MainPage> {
                         height: remoteConfig.getInt('item_height').toDouble(),
                         child: Card(
                           color: Colors.amber,
-                          child: Text(item['title'].toString()),
+                          child: Text('질문: ${item['title']}'),
                         ),
                       ),
                       onTap: () async {
